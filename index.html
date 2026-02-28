@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>EcoRush: Barangay Cleanup Challenge</title>
+  <style>
+    :root{
+      --bg:#e9ffe7;--green:#23a84a;--dark:#0e4f24;--accent:#ffd54f;--danger:#ff4d6d;--card:#fff;
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:linear-gradient(#b5f7a8,#e6ffe6);color:#163a1f;overflow:hidden}
+    .screen{display:none;height:100vh;overflow:auto;padding:12px 12px 90px}
+    .screen.active{display:block}
+    .panel{background:#ffffffdb;border:2px solid #87d891;border-radius:16px;padding:12px;box-shadow:0 8px 24px #0002}
+    h1,h2,h3,p{margin:.4rem 0}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .space{justify-content:space-between}
+    button{background:var(--green);color:#fff;border:0;border-radius:12px;padding:10px 14px;font-weight:700;box-shadow:0 4px 0 #13642d;cursor:pointer}
+    button.secondary{background:#f7fff7;color:#11612f;border:2px solid #2cb45b;box-shadow:none}
+    button.warn{background:#ff7d00}
+    button:disabled{opacity:.45;cursor:not-allowed}
+    .pill{background:#fff;border:2px solid #7bd88f;padding:6px 10px;border-radius:999px;font-weight:700}
+    .title{text-align:center;padding:20px 8px}
+    .tagline{opacity:.85}
+    .bigbtn{width:100%;margin:8px 0}
+    .map{position:relative;height:75vh;overflow:auto;background:linear-gradient(#c8f7b8,#f1ffe8);border-radius:14px;padding:20px}
+    .path{position:relative;min-height:2100px}
+    .node{position:absolute;width:64px;height:64px;border-radius:50%;background:#fff;border:3px solid #1e8e3e;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-shadow:0 5px 10px #0002}
+    .node.locked{filter:grayscale(1);opacity:.65}
+    .node.current{animation:pulse 1s infinite}
+    @keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+    .player{position:absolute;transition:.3s;filter:drop-shadow(0 4px 3px #0004)}
+    .hud{position:sticky;top:0;background:#f4fff2;border-bottom:2px solid #8ddf9d;padding:8px;z-index:4}
+    .bar{height:14px;background:#d9efe0;border-radius:999px;overflow:hidden;border:1px solid #68b47d}
+    .bar > div{height:100%;width:0;background:linear-gradient(90deg,#5fd266,#ffde59,#ff4d6d);transition:.25s}
+    .tray{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+    .item{background:#fff;border:2px solid #99dca9;border-radius:14px;padding:8px;touch-action:none;position:relative;min-height:96px;display:flex;align-items:center;gap:8px}
+    .item.dragging{opacity:.35}
+    .thumb{width:52px;height:52px;border-radius:10px;object-fit:cover;background:#e6ffe8;border:1px solid #95d8a3}
+    .fallback{display:grid;place-items:center;font-size:24px;background:#effff0}
+    .dirty-tag,.hazard-tag{position:absolute;top:4px;right:4px;font-size:10px;padding:3px 6px;border-radius:999px;color:#fff;font-weight:700}
+    .dirty-tag{background:#ff8c42}
+    .hazard-tag{background:#ff3d6e}
+    .bins{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;background:#f2fff2;border-top:2px solid #98ddab;z-index:7}
+    .bin{background:#fff;border:2px dashed #2f9f52;border-radius:12px;padding:8px;text-align:center;font-size:12px;font-weight:800;min-height:62px;position:relative}
+    .bin.over{box-shadow:0 0 0 4px #84f3a566 inset;transform:translateY(-2px)}
+    .bin.shake{animation:shake .3s}
+    @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+    .floating{position:fixed;pointer-events:none;font-weight:800;animation:float 700ms forwards;z-index:99}
+    @keyframes float{to{transform:translateY(-40px);opacity:0}}
+    .modal-backdrop{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
+    .modal-backdrop.show{display:flex}
+    .modal{background:#fff;width:min(440px,96vw);border-radius:16px;border:2px solid #8ed89e;padding:14px;max-height:92vh;overflow:auto}
+    .shop-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .card{border:2px solid #9addab;border-radius:12px;padding:8px;background:#fff}
+    .tiny{font-size:12px;opacity:.8}
+    .banner{position:fixed;top:65px;left:50%;transform:translateX(-50%);background:#1f9f45;color:#fff;padding:8px 12px;border-radius:999px;z-index:15;display:none}
+    .stars{color:#ffb400;letter-spacing:2px}
+    .streak{background:#ffe565;border:2px solid #ffcb05;color:#7b5100;border-radius:999px;padding:2px 8px;font-weight:900}
+    .objective{background:#fff9d9;border:2px solid #ffd74f;padding:6px 8px;border-radius:10px}
+  </style>
+</head>
+<body>
+  <div id="banner" class="banner"></div>
+  <section id="home" class="screen active">
+    <div class="title panel">
+      <h1>EcoRush</h1>
+      <p class="tagline">Barangay Cleanup Challenge — sort smart, keep your barangay clean!</p>
+      <div class="row space"><span class="pill">🪙 <b id="coinsHome">0</b></span><span class="pill">❤️ <b id="livesHome">5</b>/5 <small id="lifeTimer">full</small></span></div>
+      <div class="row"><button id="toggleSfx" class="secondary">SFX: ON</button><button id="toggleMusic" class="secondary">Music: ON</button></div>
+      <button class="bigbtn" onclick="openMap()">Play</button>
+      <button class="bigbtn secondary" onclick="showScreen('shop')">Shop</button>
+      <button class="bigbtn secondary" onclick="showScreen('scan')">AI Scan</button>
+      <button class="bigbtn secondary" onclick="showScreen('tutorial')">How to Play</button>
+    </div>
+  </section>
+
+  <section id="map" class="screen">
+    <div class="panel row space"><h2>Barangay Map</h2><button onclick="showScreen('home')">Back</button></div>
+    <div class="map"><div id="path" class="path"></div></div>
+  </section>
+
+  <section id="prelevel" class="screen">
+    <div class="panel">
+      <div class="row space"><h2 id="preTitle"></h2><button onclick="openMap()">Map</button></div>
+      <p id="preZone"></p>
+      <p><b>Objective:</b> <span id="preObjective"></span></p>
+      <h3>Activate Boosts You Own</h3>
+      <div class="row" id="boostPick"></div>
+      <button class="bigbtn" id="startLevelBtn">Start Level (-1 life)</button>
+    </div>
+  </section>
+
+  <section id="game" class="screen">
+    <div class="hud">
+      <div class="row space"><button onclick="exitLevel()" class="secondary">Exit</button><b id="hudLevel">Level 1</b><span>Score <b id="hudScore">0</b></span></div>
+      <div class="row space"><span>🪙 <b id="hudCoins">0</b></span><span id="hudTimerWrap">⏱️ <b id="hudTimer">--</b></span><span id="streakBadge" class="streak" style="display:none">x2</span></div>
+      <div class="row"><div style="flex:1"><div class="tiny">Contamination</div><div class="bar"><div id="contamBar"></div></div></div><span id="contamText">0%</span></div>
+      <div id="objectiveBox" class="objective tiny" style="display:none"></div>
+      <div class="row"><button class="secondary" id="useHint">Hint</button><button class="secondary" id="useShield">Shield</button><button class="secondary" id="useVacuum">Vacuum</button><button class="secondary" id="useFreeze">Freeze</button></div>
+    </div>
+    <div class="panel">
+      <h3>Trash Tray</h3>
+      <div id="tray" class="tray"></div>
+    </div>
+  </section>
+
+  <section id="shop" class="screen">
+    <div class="panel">
+      <div class="row space"><h2>Shop</h2><button onclick="showScreen('home')">Back</button></div>
+      <p>Coins: <b id="shopCoins">0</b></p>
+      <div id="shopGrid" class="shop-grid"></div>
+    </div>
+  </section>
+
+  <section id="scan" class="screen">
+    <div class="panel">
+      <div class="row space"><h2>AI Scan</h2><button onclick="showScreen('home')">Back</button></div>
+      <input id="scanInput" placeholder="Type item (e.g., battery, shopee box)" style="width:100%;padding:10px;border-radius:10px;border:2px solid #8eda9b"/>
+      <button class="bigbtn" onclick="runScan()">Scan Item</button>
+      <div class="row" id="quickScan"></div>
+      <div id="scanResult" class="card"></div>
+    </div>
+  </section>
+
+  <section id="tutorial" class="screen">
+    <div class="panel">
+      <div class="row space"><h2>How to Play</h2><button onclick="showScreen('home')">Back</button></div>
+      <ul>
+        <li>Drag a trash card to the correct bin.</li>
+        <li>Wrong drops add contamination. Reach 100% and you fail.</li>
+        <li>Dirty recyclable cards (lvl 6+) must be tapped first to clean.</li>
+        <li>Timed hazard cards (lvl 18+) must be sorted in 6 seconds.</li>
+        <li>Use boosts: Hint, Shield, Vacuum, Freeze.</li>
+      </ul>
+      <p><b>Bins:</b> Biodegradable | Recyclable | Residual | Hazardous</p>
+      <h3>HOW TO REPLACE IMAGE LINKS</h3>
+      <p class="tiny">In JavaScript, edit each trash item <code>imageSrc</code> inside <code>TRASH_DB</code>. Replace URL strings with your Canva upload links. If an image fails, the game auto-shows a fallback icon card.</p>
+    </div>
+  </section>
+
+  <div class="bins" id="bins"></div>
+
+  <div id="modal" class="modal-backdrop"><div class="modal" id="modalBody"></div></div>
+
+<script>
+const CATS=["Biodegradable","Recyclable","Residual","Hazardous"];
+const ZONES=["Purok Riverside","Palengke Area","School Zone","Tricycle Terminal","Barangay Hall Grounds","Creekside Homes"];
+const BOOSTS={hint:{price:50,label:"Hint"},shield:{price:80,label:"Shield"},vacuum:{price:120,label:"Vacuum"},freeze:{price:100,label:"Freeze"}};
+const AUDIO_URLS={click:"https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg",correct:"https://actions.google.com/sounds/v1/cartoon/pop.ogg",wrong:"https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg",complete:"https://actions.google.com/sounds/v1/cartoon/concussive_hit_guitar_boing.ogg",fail:"https://actions.google.com/sounds/v1/cartoon/siren_whistle.ogg",music:"https://cdn.pixabay.com/download/audio/2022/08/04/audio_2dde668d05.mp3?filename=kids-happy-14585.mp3"};
+const sounds={};
+for(const k in AUDIO_URLS){try{sounds[k]=new Audio(AUDIO_URLS[k]); if(k==='music'){sounds[k].loop=true;sounds[k].volume=.25;}}catch{}}
+const iconFor={Biodegradable:"🍃",Recyclable:"♻️",Residual:"🧻",Hazardous:"⚠️"};
+
+const TRASH_DB=[
+...[
+"Banana Peel","Leftover Rice","Fish Bones (Sinigang)","Chicken Bones (Inasal)","Mango Seed","Coconut Husk","Vegetable Peels","Corn Cob","Egg Shells","Calamansi Peel","Used Tea Leaves","Coffee Grounds","Wilted Leaves","Bread Leftover","Fruit Peels","Rice Bran"].map(n=>({name:n,cat:"Biodegradable",imageSrc:`https://via.placeholder.com/96x96/9be89f/0f5f24?text=${encodeURIComponent(n.slice(0,8))}`})),
+...[
+"Mineral Water Bottle","Soft Drink Bottle","Sardines Can","Tuna Can","Glass Bottle","Aluminum Can","Shopee Box","Lazada Box","Newspaper","Cardboard","Paper Bag","Clean Plastic Container","Detergent Bottle (Rinsed)","Glass Jar","Metal Lid","Milk Carton (Rinsed)","Juice Box (Rinsed)","Tin Biscuit Can"].map(n=>({name:n,cat:"Recyclable",imageSrc:`https://via.placeholder.com/96x96/8fd3ff/004870?text=${encodeURIComponent(n.slice(0,8))}`})),
+...[
+"Used Diaper","Candy Wrapper (Local)","Chip Bag","Styrofoam Plate","Plastic Straw","Dirty Plastic Bag","Broken Slippers (Tsinelas)","Old Sponge","Used Tissue","Toothbrush","Broken Ceramic","Sachet Wrapper","Used Face Mask","Wet Wipes","Tape","Greasy Pizza Box"].map(n=>({name:n,cat:"Residual",imageSrc:`https://via.placeholder.com/96x96/f8d7a6/6b3b00?text=${encodeURIComponent(n.slice(0,8))}`})),
+...[
+"Battery","Phone Battery","Light Bulb","Mosquito Spray Can","Bleach Bottle","Pesticide Bottle","Medicine Blister Pack","Expired Medicine","Nail Polish","Aerosol Can","E-waste Charger","Broken Thermometer","Printer Ink Cartridge","Paint Can","Motor Oil","Car Battery"].map(n=>({name:n,cat:"Hazardous",imageSrc:`https://via.placeholder.com/96x96/ff9ab4/6b001f?text=${encodeURIComponent(n.slice(0,8))}`}))
+];
+
+const SAVE_KEY='ecorush_v1';
+const defaultSave={coins:0,lives:5,lastLifeTs:Date.now(),unlocked:1,stars:{},bestScore:{},boosts:{hint:0,shield:0,vacuum:0,freeze:0},sfx:true,music:false};
+let save=load();
+let game=null;
+
+function load(){try{return {...defaultSave,...JSON.parse(localStorage.getItem(SAVE_KEY)||'{}')}}catch{return {...defaultSave}}}
+function persist(){localStorage.setItem(SAVE_KEY,JSON.stringify(save));refreshTop()}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.getElementById('bins').style.display=id==='game'?'grid':'none';if(id==='shop')renderShop();if(id==='map')renderMap();if(id==='scan')renderQuickScan();refreshTop()}
+function refreshTop(){regenLives();coinsHome.textContent=save.coins;shopCoins.textContent=save.coins;livesHome.textContent=save.lives;toggleSfx.textContent='SFX: '+(save.sfx?'ON':'OFF');toggleMusic.textContent='Music: '+(save.music?'ON':'OFF');lifeTimer.textContent=save.lives>=5?'full':`next in ${lifeCountdown()}`;if(save.music){safePlay('music')}else{sounds.music?.pause()}}
+function lifeCountdown(){const ms=300000-(Date.now()-save.lastLifeTs);const s=Math.max(0,Math.ceil(ms/1000));return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`}
+function regenLives(){if(save.lives>=5)return;const now=Date.now();const gained=Math.floor((now-save.lastLifeTs)/300000);if(gained>0){save.lives=Math.min(5,save.lives+gained);save.lastLifeTs += gained*300000;persist();}}
+setInterval(()=>{refreshTop();if(game)tick()},1000);
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function lvlConfig(level){const trashCount=Math.min(28,6+level+Math.floor(level/3));const hazardChance=clamp(0.05+level*0.012,0.05,0.38);let contamPenalty=10+Math.floor(level/4)*2;if(level>=25)contamPenalty+=4;const timeLimit=Math.round(clamp(75-level*1.5-trashCount*0.6,30,75));const waves=level<=7?1:level<=15?2:3;return {trashCount,hazardChance,contamPenalty,timeLimit,waves};}
+function streakMult(st){if(st<=2)return 1;if(st<=4)return 2;if(st<=6)return 3;if(st<=8)return 4;return 5}
+function rand(a){return a[Math.floor(Math.random()*a.length)]}
+
+function buildLevelItems(level){const cfg=lvlConfig(level), arr=[];
+for(let i=0;i<cfg.trashCount;i++){
+  let pool=Math.random()<cfg.hazardChance?TRASH_DB.filter(x=>x.cat==='Hazardous'):TRASH_DB;
+  const base={...rand(pool),id:Math.random().toString(36).slice(2),cleaned:true,timed:false,spawnTs:Date.now()};
+  if(level>=6 && base.cat==='Recyclable' && Math.random()<.35){base.cleaned=false;}
+  if(level>=18 && base.cat==='Hazardous' && Math.random()<.35){base.timed=true;base.spawnTs=Date.now();}
+  arr.push(base);
+}
+return arr;
+}
+function objectiveFor(level){if(level<10)return null;const t=[
+{type:'recycle',text:`Sort at least ${3+Math.floor(level/4)} recyclables`,goal:3+Math.floor(level/4)},
+{type:'contam',text:`Finish below ${30+Math.floor(level/3)}% contamination`,goal:30+Math.floor(level/3)},
+{type:'streak',text:`Maintain streak of ${4+Math.floor(level/6)}`,goal:4+Math.floor(level/6)},
+{type:'nomiss',text:`No mistakes`,goal:1},
+{type:'under',text:`Finish under ${55-Math.floor(level/3)} sec`,goal:55-Math.floor(level/3)}
+]; return rand(t);
+}
+
+function openMap(){showScreen('map');}
+function renderMap(){
+  const path=document.getElementById('path');path.innerHTML='';
+  for(let i=1;i<=30;i++){
+    const node=document.createElement('button'); node.className='node';
+    const x=i%2?20:220,y=2000-(i*62);
+    node.style.left=x+'px';node.style.top=y+'px';
+    const stars=save.stars[i]||0; const locked=i>save.unlocked;
+    node.innerHTML=`<div>${locked?'🔒':'Lv'+i}</div><div class='stars'>${'★'.repeat(stars)}${'☆'.repeat(3-stars)}</div>`;
+    if(locked)node.classList.add('locked'); if(i===save.unlocked)node.classList.add('current');
+    node.disabled=locked; node.onclick=()=>openPreLevel(i);
+    path.appendChild(node);
+  }
+  const p=document.createElement('div');p.className='player'; const x=save.unlocked%2?36:236,y=2000-(save.unlocked*62)-34; p.style.left=x+'px';p.style.top=y+'px';p.textContent='🧍'; path.appendChild(p);
+}
+function openPreLevel(level){showScreen('prelevel');const obj=objectiveFor(level);game={level,obj,selectedBoosts:{}};preTitle.textContent=`Level ${level}`;preZone.textContent=`Zone: ${ZONES[(level-1)%ZONES.length]}`;preObjective.textContent=obj?obj.text:'Sort all trash correctly!';boostPick.innerHTML='';
+Object.keys(BOOSTS).forEach(k=>{const b=document.createElement('button');b.className='secondary';b.textContent=`${BOOSTS[k].label} (${save.boosts[k]||0})`;b.onclick=()=>{if((save.boosts[k]||0)<=0)return;b.classList.toggle('warn');game.selectedBoosts[k]=b.classList.contains('warn')};boostPick.appendChild(b)});
+startLevelBtn.onclick=()=>startLevel(level);
+}
+function startLevel(level){regenLives();if(save.lives<=0){showNoLives();return;} save.lives--; if(save.lives<5&&save.lastLifeTs===0)save.lastLifeTs=Date.now(); if(save.lives===4 && (Date.now()-save.lastLifeTs)>300000)save.lastLifeTs=Date.now(); persist();
+const cfg=lvlConfig(level);
+game={...game,level,cfg,score:0,coinsTemp:0,contam:0,streak:0,mistakes:0,recycleCount:0,time:cfg.timeLimit,softTimer:level>=7&&level<10,hardTimer:level>=10,items:buildLevelItems(level),wave:1,activeShield:false,freezeUntil:0,startTs:Date.now(),consumed:{hint:false,vacuum:false}};
+for(const k of Object.keys(game.selectedBoosts||{})){if(game.selectedBoosts[k]){save.boosts[k]--;}}
+persist();showScreen('game');renderBins();renderHUD();renderTray();safePlay('click');}
+function renderBins(){const bins=document.getElementById('bins');bins.innerHTML='';
+let cats=[...CATS]; if(game.level>=15 && game.items.length<Math.ceil(game.cfg.trashCount/2))cats=cats.sort(()=>Math.random()-.5);
+game.binOrder=cats;
+cats.forEach(cat=>{const b=document.createElement('div');b.className='bin';b.dataset.cat=cat;b.innerHTML=`<div>${iconFor[cat]}</div><div>${cat}</div>`;bins.appendChild(b)});
+}
+function renderHUD(){hudLevel.textContent=`Level ${game.level}`;hudScore.textContent=game.score;hudCoins.textContent=save.coins;contamBar.style.width=game.contam+'%';contamText.textContent=Math.round(game.contam)+'%';hudTimerWrap.style.visibility=(game.level>=7?'visible':'hidden');hudTimer.textContent=game.time+'s';
+streakBadge.style.display=game.streak>=3?'inline-block':'none';streakBadge.textContent='x'+streakMult(game.streak);
+objectiveBox.style.display=game.obj?'block':'none';objectiveBox.textContent=game.obj?`Objective: ${game.obj.text}`:'';
+useHint.textContent=`Hint (${save.boosts.hint||0})`;useShield.textContent=`Shield (${save.boosts.shield||0})`;useVacuum.textContent=`Vacuum (${save.boosts.vacuum||0})`;useFreeze.textContent=`Freeze (${save.boosts.freeze||0})`;
+}
+function itemCard(it){const div=document.createElement('div');div.className='item';div.dataset.id=it.id;div.innerHTML=`<img class='thumb' src='${it.imageSrc}' alt='${it.name}'/><div><b>${it.name}</b><div class='tiny'>${it.cat}</div></div>`;
+const img=div.querySelector('img');img.onerror=()=>{img.replaceWith(Object.assign(document.createElement('div'),{className:'thumb fallback',textContent:iconFor[it.cat]}));};
+if(!it.cleaned){const t=document.createElement('span');t.className='dirty-tag';t.textContent='Tap to Clean';div.appendChild(t);div.onclick=()=>{it.cleaned=true;renderTray();spark(div,'🧼 cleaned','#ff8c42')};}
+if(it.timed){const h=document.createElement('span');h.className='hazard-tag';h.textContent='6s';div.appendChild(h)}
+attachDrag(div,it);
+return div;}
+function renderTray(){const tray=document.getElementById('tray');tray.innerHTML='';const remaining=game.items;
+remaining.slice(0,8).forEach(it=>tray.appendChild(itemCard(it)));
+renderHUD();checkLevelEnd();
+}
+
+function attachDrag(el,it){let ghost=null,ox=0,oy=0;
+el.addEventListener('pointerdown',e=>{if(!game||!game.items.find(x=>x.id===it.id))return; if(!it.cleaned && it.cat==='Recyclable')return; el.setPointerCapture(e.pointerId);el.classList.add('dragging'); const r=el.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top; ghost=el.cloneNode(true); ghost.style.position='fixed';ghost.style.left=r.left+'px';ghost.style.top=r.top+'px';ghost.style.width=r.width+'px';ghost.style.zIndex=999;ghost.style.pointerEvents='none';document.body.appendChild(ghost);
+});
+el.addEventListener('pointermove',e=>{if(!ghost)return;ghost.style.left=(e.clientX-ox)+'px';ghost.style.top=(e.clientY-oy)+'px';document.querySelectorAll('.bin').forEach(b=>b.classList.remove('over'));const over=[...document.querySelectorAll('.bin')].find(b=>inRect(e.clientX,e.clientY,b.getBoundingClientRect()));if(over)over.classList.add('over');});
+el.addEventListener('pointerup',e=>{if(!ghost)return; const over=[...document.querySelectorAll('.bin')].find(b=>inRect(e.clientX,e.clientY,b.getBoundingClientRect()));document.querySelectorAll('.bin').forEach(b=>b.classList.remove('over'));if(over)dropItem(it,over.dataset.cat,over);ghost.remove();ghost=null;el.classList.remove('dragging');});
+}
+function inRect(x,y,r){return x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom}
+
+function dropItem(it,targetCat,binEl){if(!game)return;let correct=it.cat===targetCat;if(it.cat==='Recyclable'&&!it.cleaned&&targetCat==='Recyclable')correct=false;
+if(correct){const mult=streakMult(++game.streak);const gain=10*mult;game.score+=gain;game.coinsTemp += mult>=4?2:1;if(it.cat==='Recyclable')game.recycleCount++;safePlay('correct');spark(binEl,`+${gain}`,'#29c35a');game.items=game.items.filter(x=>x.id!==it.id);
+}else{
+  game.mistakes++; game.streak=0;
+  if(game.activeShield){game.activeShield=false;spark(binEl,'Shield!','#00a8ff');}
+  else game.contam=Math.min(100,game.contam+game.cfg.contamPenalty);
+  binEl.classList.add('shake'); setTimeout(()=>binEl.classList.remove('shake'),350); safePlay('wrong'); spark(binEl,'✖','#ff3d6e');
+}
+if(game.level>=15 && !game.shuffled && game.items.length<=Math.ceil(game.cfg.trashCount/2)){game.shuffled=true;renderBins();showBanner('Bins rearranged!');}
+renderTray();
+}
+function tick(){if(!game)return;
+if(game.level>=18){for(const it of game.items){if(it.timed){const left=6-Math.floor((Date.now()-it.spawnTs)/1000);if(left<=0){game.contam=Math.min(100,game.contam+10);game.items=game.items.filter(x=>x.id!==it.id);showBanner('Hazard expired! +10 contamination');} }}}
+if(game.hardTimer || game.softTimer){if(Date.now()<game.freezeUntil)return;game.time=Math.max(0,game.time-1);if(game.hardTimer && game.time<=0){return failLevel('Time ran out');}}
+renderTray();
+}
+function checkLevelEnd(){if(game.contam>=100)return failLevel('Contamination reached 100%'); if(game.items.length>0)return;
+let stars=1; if(game.contam<=35)stars++; if(game.mistakes===0)stars++; if(game.obj&&!objectiveMet())stars=Math.max(1,stars-1);
+const coinsEarned=Math.floor(game.score/10)+stars*50+game.coinsTemp+(game.softTimer&&game.time>15?20:0);
+save.coins+=coinsEarned; save.stars[game.level]=Math.max(save.stars[game.level]||0,stars); save.bestScore[game.level]=Math.max(save.bestScore[game.level]||0,game.score); if(game.level===save.unlocked&&game.level<30)save.unlocked++; persist();safePlay('complete');if(stars===3)confetti();
+openModal(`<h2>Level Complete!</h2><p class='stars'>${'★'.repeat(stars)}${'☆'.repeat(3-stars)}</p><p>Score: <b>${game.score}</b><br/>Coins Earned: <b>${coinsEarned}</b></p><div class='row'><button onclick='closeModal();openPreLevel(${Math.min(30,game.level+1)})'>Next Level</button><button class='secondary' onclick='closeModal();openMap()'>Map</button></div>`);
+}
+function objectiveMet(){const o=game.obj;if(!o)return true;const elapsed=Math.floor((Date.now()-game.startTs)/1000);if(o.type==='recycle')return game.recycleCount>=o.goal;if(o.type==='contam')return game.contam<o.goal;if(o.type==='streak')return game.streak>=o.goal;if(o.type==='nomiss')return game.mistakes===0;if(o.type==='under')return elapsed<=o.goal;return true;}
+function failLevel(reason){safePlay('fail');openModal(`<h2>Level Failed</h2><p>${reason}</p><div class='row'><button onclick='closeModal();startLevel(${game.level})'>Retry</button><button class='secondary' onclick='closeModal();openMap()'>Map</button></div>`);}
+function showNoLives(){openModal(`<h2>No Lives Left</h2><p>Next life in ${lifeCountdown()}</p><button onclick='closeModal()'>OK</button>`)}
+function exitLevel(){openModal(`<h3>Exit level?</h3><div class='row'><button class='warn' onclick='closeModal();openMap()'>Exit</button><button class='secondary' onclick='closeModal()'>Stay</button></div>`)}
+function openModal(html){modalBody.innerHTML=html;modal.classList.add('show')} function closeModal(){modal.classList.remove('show')}
+function spark(anchor,text,color){const r=anchor.getBoundingClientRect();const f=document.createElement('div');f.className='floating';f.style.left=(r.left+r.width/2)+'px';f.style.top=(r.top)+'px';f.style.color=color;f.textContent=text;document.body.appendChild(f);setTimeout(()=>f.remove(),700)}
+function showBanner(txt){banner.textContent=txt;banner.style.display='block';setTimeout(()=>banner.style.display='none',1600)}
+function confetti(){for(let i=0;i<24;i++){const c=document.createElement('div');c.className='floating';c.style.left=Math.random()*innerWidth+'px';c.style.top='140px';c.style.color=['#ff4d6d','#00c853','#ffd600','#00b0ff'][i%4];c.textContent='✦';document.body.appendChild(c);setTimeout(()=>c.remove(),900+Math.random()*700)}}
+
+function runScan(){const q=scanInput.value.trim().toLowerCase();const found=TRASH_DB.find(i=>i.name.toLowerCase().includes(q));const item=found||TRASH_DB.find(i=>q.includes(i.name.toLowerCase().split(' ')[0]));if(!item){scanResult.innerHTML='<b>Unknown item</b><p>Try a clearer name.</p>';return;}
+scanResult.innerHTML=`<h3>${item.name}</h3><p><b>Category:</b> ${item.cat}</p><p><b>Do:</b> Put in ${item.cat} bin ${item.cat==='Recyclable'?'after rinsing/cleaning.':'.'}</p><p><b>Don\'t:</b> Mix with other categories.</p>`;
+}
+function renderQuickScan(){quickScan.innerHTML='';['battery','shopee box','banana peel','used diaper','light bulb','sardines can'].forEach(q=>{const b=document.createElement('button');b.className='secondary';b.textContent=q;b.onclick=()=>{scanInput.value=q;runScan();};quickScan.appendChild(b)});scanResult.textContent='Scan result will appear here.'}
+function renderShop(){shopGrid.innerHTML='';Object.entries(BOOSTS).forEach(([k,v])=>{const c=document.createElement('div');c.className='card';c.innerHTML=`<h3>${v.label}</h3><p class='tiny'>Price: ${v.price}</p><p>Owned: <b>${save.boosts[k]||0}</b></p><button>Buy</button>`;c.querySelector('button').onclick=()=>{if(save.coins<v.price)return showBanner('Not enough coins');save.coins-=v.price;save.boosts[k]=(save.boosts[k]||0)+1;persist();renderShop();safePlay('click')};shopGrid.appendChild(c)});
+}
+
+useHint.onclick=()=>{if(!game||!save.boosts.hint)return;save.boosts.hint--;persist();const it=game.items[0];if(!it)return;const b=[...document.querySelectorAll('.bin')].find(x=>x.dataset.cat===it.cat);b.classList.add('over');setTimeout(()=>b.classList.remove('over'),1800)};
+useShield.onclick=()=>{if(!game||!save.boosts.shield)return;save.boosts.shield--;game.activeShield=true;persist();showBanner('Shield active')};
+useVacuum.onclick=()=>{if(!game||!save.boosts.vacuum)return;save.boosts.vacuum--;persist();const it=game.items[0];if(!it)return;dropItem(it,it.cat,[...document.querySelectorAll('.bin')].find(x=>x.dataset.cat===it.cat));showBanner('Vacuum sorted one item')};
+useFreeze.onclick=()=>{if(!game||!save.boosts.freeze)return;save.boosts.freeze--;persist();game.freezeUntil=Date.now()+5000;showBanner('Timer frozen for 5s')};
+
+toggleSfx.onclick=()=>{save.sfx=!save.sfx;persist()};
+toggleMusic.onclick=()=>{save.music=!save.music;persist();if(save.music)safePlay('music');else sounds.music?.pause();};
+function safePlay(k){if(k!=='music'&&!save.sfx)return;try{const a=sounds[k]; if(!a)return; a.currentTime=0; a.play().catch(()=>{});}catch{}}
+
+refreshTop();showScreen('home');
+</script>
+</body>
+</html>
